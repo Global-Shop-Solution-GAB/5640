@@ -1,0 +1,387 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Size(8340,12345)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form..Caption("UPC Mass Update")
+Gui.Form.frmGrid.Create(Frame)
+Gui.Form.frmGrid.Size(7950,11175)
+Gui.Form.frmGrid.Position(75,75)
+Gui.Form.frmGrid.Anchor(15)
+Gui.Form.GsGridControl1.Create(GsGridControl)
+Gui.Form.GsGridControl1.Size(7800,10875)
+Gui.Form.GsGridControl1.Position(60,240)
+Gui.Form.GsGridControl1.Parent("frmGrid")
+Gui.Form.GsGridControl1.Anchor(15)
+Gui.Form.cmd1.Create(Button)
+Gui.Form.cmd1.Size(1680,375)
+Gui.Form.cmd1.Position(6345,11325)
+Gui.Form.cmd1.Anchor(10)
+Gui.Form.cmd1.Caption("Generate UPC")
+Gui.Form.cmd1.Event(Click,cmd1_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+v.Global.sFixedDigits.Declare
+v.Global.sUPC.Declare
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+f.Intrinsic.Control.Try
+	'Checks the Custom File and gets the Config File for the first 6 digits.
+	f.Intrinsic.Control.CallSub(checkCustomFolder)
+	f.Intrinsic.Control.CallSub(checkConfigFile)
+	
+	f.Intrinsic.Control.SelectCase(v.Caller.Hook)
+		f.Intrinsic.Control.Case(10125)
+			'If it is called from the load part hook, it checks if the part has an UPC. 
+			f.Intrinsic.Control.CallSub(generateSingleUPC, passedPart, v.Passed.000007, passedRev, v.Passed.000008, passedLocation, v.Passed.000009)
+		f.Intrinsic.Control.CaseElse
+			'Gets parts that do not posses an UPC
+			f.Intrinsic.Control.CallSub(getNotUPC_Parts)
+			gui.Form..Show
+	f.Intrinsic.Control.EndSelect
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.ErrorMsg.Start
+v.Local.sError.Declare
+
+'Closes ODBC connection, default to connection : "con"
+f.Intrinsic.Control.If(v.ODBC!con.State, =, 1)
+	f.ODBC.Connection!con.Close
+f.Intrinsic.Control.EndIf
+
+'Generic Error message.
+f.Intrinsic.String.Build("Project GCG_5640_UPC_UPDATE.g2u {0}{0}Subroutine: {1}{0}Error: {2} with Description: {3}", v.Ambient.NewLine, v.Args.CurrentSub, v.Ambient.ErrorNumber, v.Ambient.ErrorDescription, v.Local.sError)
+f.Intrinsic.UI.Msgbox(v.Local.sError)
+Program.Sub.ErrorMsg.End
+
+'Checks Custom Folder
+Program.Sub.checkCustomFolder.Start
+v.Local.sFolder.Declare
+v.Local.bExists.Declare
+f.Intrinsic.Control.Try
+	f.Intrinsic.String.Build("{0}\CUSTOM\GCG_5640\", v.Caller.GlobalDir, v.Local.sFolder)
+	f.Intrinsic.File.DirExists(v.Local.sFolder, v.Local.bExists)
+	f.Intrinsic.Control.If(v.Local.bExists.Not)
+		f.Intrinsic.File.CreateDir(v.Local.sFolder)
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.String.Build("{0}\CUSTOM\GCG_5640\UPC_CONFIG\", v.Caller.GlobalDir, v.Local.sFolder)
+	f.Intrinsic.File.DirExists(v.Local.sFolder, v.Local.bExists)
+	f.Intrinsic.Control.If(v.Local.bExists.Not)
+		f.Intrinsic.File.CreateDir(v.Local.sFolder)
+	f.Intrinsic.Control.EndIf
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.checkCustomFolder.End
+
+'Gets the Fixed part of the UPC Number
+Program.Sub.checkConfigFile.Start
+v.Local.sFile.Declare
+v.Local.sText.Declare
+v.Local.bExist.Declare
+f.Intrinsic.Control.Try
+	f.Intrinsic.String.Build("{0}\CUSTOM\GCG_5640\UPC_CONFIG\UPC_CONFIG.txt", v.Caller.GlobalDir, v.Local.sFile)
+	f.Intrinsic.File.Exists(v.Local.sFile, v.Local.bExist)
+	f.Intrinsic.Control.If(v.Local.bExist)
+		f.Intrinsic.File.File2String(v.Local.sFile, v.Local.sText)
+		f.Intrinsic.String.Trim(v.Local.sText, v.Local.sText)
+		f.Intrinsic.Control.If(v.Local.sText.Length, =, 7)
+			v.Global.sFixedDigits.Set(v.Local.sText)
+		f.Intrinsic.Control.Else
+			f.Intrinsic.String.Build("Configuration file does not contain a valid text. Please fix file: {0}{1}\CUSTOM\GCG_5640\UPC_CONFIG\UPC_CONFIG.txt", v.Ambient.NewLine, v.Caller.GlobalDir, v.Local.sText)
+			f.Intrinsic.UI.Msgbox(v.Local.sText)
+			f.Intrinsic.Control.End
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Else
+		f.Intrinsic.String.Build("Configuration File missing. Please create file: {0}{1}\CUSTOM\GCG_5640\UPC_CONFIG\UPC_CONFIG.txt", v.Ambient.NewLine, v.Caller.GlobalDir, v.Local.sText)
+		f.Intrinsic.UI.Msgbox(v.Local.sText)
+		f.Intrinsic.Control.End
+	f.Intrinsic.Control.EndIf
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.checkConfigFile.End
+
+Program.Sub.generateSingleUPC.Start
+v.Local.sSQL.Declare
+v.Local.sRet.Declare
+v.Local.iNumber.Declare
+v.Local.sChar.Declare
+v.Local.sText.Declare
+v.Local.iMsgRet.Declare
+v.Local.sCol.Declare
+V.Local.bBypass.Declare
+v.Local.sPart.Declare
+v.Local.sRev.Declare
+v.Local.sLocation.Declare
+v.Local.iCnt.Declare
+f.Intrinsic.Control.Try
+	v.Local.sPart.Set(v.Args.passedPart)
+	v.Local.sRev.Set(v.Args.passedRev)
+	v.Local.sLocation.Set(v.Args.passedLocation)
+	v.Global.sUPC.Set("")
+	
+	'Get the records from the extra user fields for the specific Part, and gets the the last UPC Number.
+	f.ODBC.Connection!con.OpenCompanyConnection
+		f.Intrinsic.String.Build("Select * from Inv_Extra where Part = '{0}' and Rev = '{1}' and Location = '{2}'", v.Local.sPart, v.Local.sRev, v.Local.sLocation, v.Local.sSQL)
+		f.Data.DataTable.CreateFromSQL("updateDT", "con", v.Local.sSQL)
+		f.Intrinsic.String.Build("Select MAX (USER4) as USER4 from INV_EXTRA where User4 like '{0}%'", v.Global.sFixedDigits, v.Local.sSQL)
+		f.ODBC.Connection!con.ExecuteAndReturn(v.Local.sSQL, v.Local.sRet)
+	f.ODBC.Connection!con.Close
+	
+	'Checks that User field4 is empty
+	f.Intrinsic.Control.If(v.DataTable.updateDT.RowCount, =, 1)
+		f.Intrinsic.Control.If(v.DataTable.updateDT(0).User4!FieldValTrim, <>, "")
+			f.Intrinsic.Control.ExitSub
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.EndIf
+	
+	'checks if an UPC number exists.
+	f.Intrinsic.Control.If(v.Local.sRet.Trim, =, "")
+		f.Intrinsic.String.Build("{0} 00000 1", v.Global.sFixedDigits.Trim, v.Local.sText)
+	f.Intrinsic.Control.Else
+		f.Intrinsic.String.Trim(v.Local.sRet, v.Local.sRet)
+		f.Intrinsic.Control.If(v.Local.sRet.Length, =, 15)
+			'Gets the variable part of of the UPC number
+			f.Intrinsic.String.Right(v.Local.sRet.Trim, 7, v.Local.sText)
+			'Takes away empty spaces.
+			f.Intrinsic.String.Replace(v.Local.sText, " ", "", v.Local.sText)
+			'sets as number (Leading zeros get removed.)
+			v.Local.iNumber.Set(v.Local.sText)
+			'Add 1
+			f.Intrinsic.Math.Add(v.Local.iNumber, 1, v.Local.iNumber)
+			'Convert into a string and add leading zeros
+			f.Intrinsic.String.LPad(v.Local.iNumber, "0", 6, v.Local.sText)
+			'Separates the first 5 characters and the last 1.
+			f.Intrinsic.String.Right(v.Local.sText.Trim, 1, v.Local.sChar)
+			f.Intrinsic.String.Left(v.Local.sText.Trim, 5, v.Local.sText)
+			'Joins all the parts iinto a single UPC.
+			f.Intrinsic.String.Build("{0} {1} {2}", v.Global.sFixedDigits, v.Local.sText, v.Local.sChar, v.Local.sText)
+		f.Intrinsic.Control.EndIf		
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.If(v.DataTable.updateDT.RowCount, =, 0)
+		'Adds a new row and sets columns to a default value. DB doesn't accept null values.
+		f.Data.DataTable.AddRow("updateDT", "Part", v.Local.sPart, "Rev", v.Local.sRev, "Location", v.Local.sLocation)
+		f.Intrinsic.Control.For(v.Local.iCnt, 1, 60, 1)
+			f.Intrinsic.String.Build("User{0}", v.Local.iCnt, v.Local.sCol)
+			f.Data.DataTable.SetValue("updateDT", 0, v.Local.sCol, " ")
+		f.Intrinsic.Control.Next(v.Local.iCnt)
+		'Sets UPC number to USER4
+		f.Data.DataTable.SetValue("updateDT", 0, "User4", v.Local.sText)
+	f.Intrinsic.Control.ElseIf(v.DataTable.updateDT.RowCount, =, 1)
+		'Sets UPC number to USER4
+		f.Data.DataTable.SetValue("updateDT", 0, "User4", v.Local.sText)
+	f.Intrinsic.Control.EndIf
+	
+	'If there is no part, exit
+	f.Intrinsic.Control.If(v.DataTable.updateDT(0).Part!FieldValTrim, =, "")	
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+	
+	'If different that 1 column, exit
+	f.Intrinsic.Control.If(v.DataTable.updateDT.RowCount, <>, 1)	
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+	
+	'save changes to DB.
+	f.ODBC.Connection!con.OpenCompanyConnection
+		f.Data.DataTable.SaveToDB("updateDT", "con", "INV_EXTRA", "Part*!*Rev*!*Location", 256)
+		v.Global.sUPC.Set(v.Local.sText)
+	f.ODBC.Connection!con.Close
+	f.Data.DataTable.Close("updateDT")
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.generateSingleUPC.End
+
+Program.Sub.getNotUPC_Parts.Start
+f.Intrinsic.Control.Try
+	'Gets parts that do not posses an UPC
+	f.ODBC.Connection!con.OpenCompanyConnection
+		f.Data.DataTable.CreateFromSQL("noUPC_DT", "con", "select Part as PartRev, Location, ' ' as USER4 from Inventory_Mstr where Part+location not in (Select Substring(Part,1,17)+Rev+Location from Inv_Extra where RTRIM(USER4) <> '')", true)
+	f.ODBC.Connection!con.Close
+	
+	'Separates Part and Rev
+	f.Data.DataTable.AddExpressionColumn("noUPC_DT", "Part", "String", "Substring(PartRev, 1, 17)")
+	f.Data.DataTable.AddExpressionColumn("noUPC_DT", "Rev", "String", "Substring(PartRev, 18, 20)")
+	
+	'Add Gridview and properties.
+	gui.Form.GsGridControl1.AddGridviewFromDatatable("noUPC_GV", "noUPC_DT")
+	gui.Form.GsGridControl1.MainView("noUPC_GV")
+	f.Intrinsic.Control.CallSub(loadGridProperties)
+	f.Intrinsic.Control.CallSub(SetContextMenus)
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.getNotUPC_Parts.End
+
+'Set Gridview properties
+Program.Sub.loadGridProperties.Start
+v.Local.iCnt.Declare
+v.Local.sFields.Declare
+f.Intrinsic.Control.Try
+	f.Intrinsic.String.Split(v.DataTable.noUPC_DT.FieldNames, "*!*", v.Local.sFields)
+	f.Intrinsic.Control.For(v.Local.iCnt, 0, v.Local.sFields.UBound, 1)
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "HeaderFontBold", True)
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "Visible", True)
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "ReadOnly", True)
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "AllowEdit", False)
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "HeaderHAlignment", "Near")
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "CellHAlignment", "Near")
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "HeaderBackColor", v.Color.GSS)
+		gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", v.Local.sFields(v.Local.iCnt), "HeaderForeColor", v.Color.White)
+	f.Intrinsic.Control.Next(v.Local.iCnt)
+	
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "Part", "Caption", "Part")
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "Rev", "Caption", "Rev")
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "Location", "Caption", "Location")
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "USER4", "Caption", "UPC")
+	
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "Part", "VisibleIndex", 0)
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "Rev", "VisibleIndex", 1)
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "Location", "VisibleIndex", 2)
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "USER4", "VisibleIndex", 3)
+	
+	gui.Form.GsGridControl1.SetColumnProperty("noUPC_GV", "PartRev", "Visible", False)
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.loadGridProperties.End
+
+'Generates all UPC for parts that have no UPC.
+Program.Sub.cmd1_Click.Start
+v.Local.iCnt.Declare
+v.Local.sPart.Declare
+v.Local.sRev.Declare
+v.Local.sLocation.Declare
+f.Intrinsic.Control.Try
+	gui.Form..Enabled(False)
+	f.Intrinsic.Control.For(v.Local.iCnt, 0, v.DataTable.noUPC_DT.RowCount--, 1)
+		'Gets key data from the display dt.
+		v.Local.sPart.Set(v.DataTable.noUPC_DT(v.Local.iCnt).Part!FieldValTrim)
+		v.Local.sRev.Set(v.DataTable.noUPC_DT(v.Local.iCnt).Rev!FieldValTrim)
+		v.Local.sLocation.Set(v.DataTable.noUPC_DT(v.Local.iCnt).Location!FieldValTrim)
+		'GeneratesSingleUPC.
+		f.Intrinsic.Control.CallSub(generateSingleUPC, passedPart, v.Local.sPart, passedRev, v.Local.sRev, passedLocation, v.Local.sLocation)
+		'sets the value in the display DT, for sreen only.
+		f.Data.DataTable.SetValue("noUPC_DT", v.Local.iCnt, "User4", v.Global.sUPC)
+	f.Intrinsic.Control.Next(v.Local.iCnt)	
+	gui.Form..Enabled(True)
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.cmd1_Click.End
+
+Program.Sub.Form_UnLoad.Start
+f.Intrinsic.Control.Try
+	f.Intrinsic.Control.End
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.SetContextMenus.Start
+v.Local.bEditSO.Declare	
+v.Local.bEditWO.Declare
+f.Intrinsic.Control.Try
+	Gui.Form..ContextMenuCreate("ctxSchema")
+	Gui.Form.GsGridControl1.ContextMenuAttach("ctxSchema")
+	Gui.Form..ContextMenuAddItem("ctxSchema","Refresh",0,"Refresh")
+	Gui.Form..ContextMenuAddItem("ctxSchema","Export",0,"Export")		
+	Gui.Form..ContextMenuSetItemEventHandler("ctxSchema","Refresh","MenuClickRefresh")
+	Gui.Form..ContextMenuSetItemEventHandler("ctxSchema","Export","MenuClickExport")
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.SetContextMenus.End
+
+'Export to Excel, if not present to CSV.
+Program.Sub.MenuClickExport.Start
+v.Local.sFileExport.Declare
+v.Local.bExcel.Declare
+v.Local.bFileLocked.Declare
+v.Local.sMsg.Declare
+v.Local.sControl.Declare
+v.Local.sGV.Declare
+v.Local.bExists.Declare
+f.Intrinsic.Control.Try
+
+	f.Intrinsic.String.Build("{0}\CUSTOM\GCG_5640", v.Caller.GlobalDir, v.Local.sFileExport)
+	f.Intrinsic.File.DirExists(v.Local.sFileExport, v.Local.bExists)
+	
+	f.Intrinsic.Control.If(v.Local.bExists.Not)
+		f.Intrinsic.File.CreateDir(v.Local.sFileExport)
+	f.Intrinsic.Control.EndIf
+	
+	f.Automation.MSExcel.CheckPresence(v.Local.bExcel)
+	f.Intrinsic.Control.If(v.Local.bExcel)
+		f.Intrinsic.String.Build("{0}\GAB_5640_Export.xlsx", v.Local.sFileExport,v.Local.sFileExport)
+		
+		f.Intrinsic.File.Exists(v.Local.sFileExport, v.Local.bExists)
+		f.Intrinsic.Control.If(v.Local.bExists.Not)
+			'f.Automation.MSExcel.CreateAppObject("excelObj")
+			f.Automation.MSExcel.WriteSpreadsheet(v.Local.sFileExport, "")
+		f.Intrinsic.Control.EndIf
+	
+	
+		f.Intrinsic.File.IsFileLocked(v.Local.sFileExport, v.Local.bFileLocked)
+		f.Intrinsic.Control.If(v.Local.bFileLocked)
+			f.Intrinsic.String.Build("File is already open. Please close and export again.{0}File: {1}", v.Ambient.NewLine, v.Local.sFileExport, v.Local.sMsg)
+			f.Intrinsic.UI.Msgbox(v.Local.sMsg,"File In Use")
+		f.Intrinsic.Control.Else
+			Gui.Form.GsGridControl1.Export(v.Local.sFileExport,"xlsx")
+			f.Intrinsic.Task.ShellExec(0, "", v.Local.sFileExport, "", "", 1)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Else
+		f.Intrinsic.String.Build("{0}\GAB_5640_Export.csv", v.Local.sFileExport,  v.Local.sFileExport)
+		
+		f.Intrinsic.File.Exists(v.Local.sFileExport, v.Local.bExists)
+		f.Intrinsic.Control.If(v.Local.bExists.Not)
+			f.Intrinsic.File.String2File(v.Local.sFileExport, "")
+		f.Intrinsic.Control.EndIf		
+		
+		f.Intrinsic.File.IsFileLocked(v.Local.sFileExport, v.Local.bFileLocked)
+		f.Intrinsic.Control.If(v.Local.bFileLocked)
+			f.Intrinsic.String.Build("File is already open. Please close and export again.{0}File: {1}", v.Ambient.NewLine, v.Local.sFileExport, v.Local.sMsg)
+			f.Intrinsic.UI.Msgbox(v.Local.sMsg,"File In Use")
+		f.Intrinsic.Control.Else
+			Gui.Form.GsGridControl1.Export(v.Local.sFileExport,"csv")
+		f.Intrinsic.Control.EndIf
+		f.Intrinsic.Task.ShellExec(0,"",v.Local.sFileExport,"","",1)
+	f.Intrinsic.Control.EndIf
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.MenuClickExport.End
+
+'Refreshes the Grid.
+Program.Sub.MenuClickRefresh.Start
+f.Intrinsic.Control.Try
+	f.ODBC.Connection!con.OpenCompanyConnection
+		f.Data.DataTable.CreateFromSQL("noUPC_DT_tmp", "con", "select Part as PartRev, Location, ' ' as USER4 from Inventory_Mstr where Part+location not in (Select Substring(Part,1,17)+Rev+Location from Inv_Extra where RTRIM(USER4) <> '')", true)
+	f.ODBC.Connection!con.Close
+	
+	f.Data.DataTable.AddExpressionColumn("noUPC_DT_tmp", "Part", "String", "Substring(PartRev, 1, 17)")
+	f.Data.DataTable.AddExpressionColumn("noUPC_DT_tmp", "Rev", "String", "Substring(PartRev, 18, 20)")
+	
+	f.Data.DataTable.DeleteRow("noUPC_DT")
+	f.Data.DataTable.AcceptChanges("noUPC_DT")
+	f.Data.DataTable.Merge("noUPC_DT_tmp", "noUPC_DT", false, 2)
+	f.Data.DataTable.AcceptChanges("noUPC_DT")
+	f.Data.DataTable.Close("noUPC_DT_tmp")
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+f.Intrinsic.Control.EndTry
+Program.Sub.MenuClickRefresh.End
